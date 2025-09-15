@@ -1,5 +1,3 @@
-
-
 -- ✅ Guard against re-execution
 if _G.ShopFinderHasRun then return end
 _G.ShopFinderHasRun = true
@@ -17,13 +15,18 @@ local webhookMap = {
 
 -- Roblox services
 local Players = game:GetService('Players')
+local TeleportService = game:GetService('TeleportService')
+local HttpService = game:GetService('HttpService')
+
 local localPlayer = Players.LocalPlayer
 local username = localPlayer and localPlayer.Name
+local placeId = game.PlaceId
+local currentJobId = game.JobId
 
 -- Pick webhook
 local whbk = webhookMap[username] or 'https://discord.com/api/webhooks/default/defaultwebhook'
 
--- HTTP support
+-- HTTP request function
 local httpRequest = (syn and syn.request)
     or (http and http.request)
     or request
@@ -31,29 +34,18 @@ local httpRequest = (syn and syn.request)
     or (fluxus and fluxus.request)
     or (krnl and krnl.request)
 
--- Webhook sending
+-- Send Discord webhook
 local function sendgoon(name, rarity, mutation, jobId)
     if not httpRequest then return end
 
-    local placeId = tostring(game.PlaceId)
     local robloxJoinLink = string.format(
         'roblox://placeID=%s&gameInstanceId=%s',
-        placeId,
-        tostring(jobId)
+        placeId, tostring(jobId)
     )
 
-    local info
-    if mutation then
-        info = string.format(
-            "**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n[Mutation] %s\n```\n**Join Server**\n%s",
-            tostring(name), tostring(rarity), tostring(mutation), robloxJoinLink
-        )
-    else
-        info = string.format(
-            "**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n```\n**Join Server**\n%s",
-            tostring(name), tostring(rarity), robloxJoinLink
-        )
-    end
+    local info = mutation
+        and string.format("**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n[Mutation] %s\n```\n**Join Server**\n%s", name, rarity, mutation, robloxJoinLink)
+        or string.format("**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n```\n**Join Server**\n%s", name, rarity, robloxJoinLink)
 
     local payload = {
         embeds = {
@@ -63,14 +55,11 @@ local function sendgoon(name, rarity, mutation, jobId)
                 color = 500989,
             },
         },
-        attachments = {},
     }
 
-    local HttpService = game:GetService('HttpService')
     local body = HttpService:JSONEncode(payload)
 
-    task.wait(1) -- avoid rate limits
-
+    task.wait(1)
     pcall(function()
         httpRequest({
             Url = whbk,
@@ -81,14 +70,12 @@ local function sendgoon(name, rarity, mutation, jobId)
     end)
 end
 
--- 🧠 Rare-checking function
+-- Scan all podiums for rare
 local function scanForRare()
     local plots = workspace:WaitForChild('Plots', 10)
-    local jobId = game.JobId
-
     if not plots then return false end
 
-    for _, plot in pairs(plots:GetChildren()) do
+    for _, plot in ipairs(plots:GetChildren()) do
         local podiums = plot:FindFirstChild('AnimalPodiums')
         if podiums then
             for i = 0, 30 do
@@ -104,22 +91,14 @@ local function scanForRare()
                         local nameLabel = overhead:FindFirstChild('DisplayName')
                         local mutationLabel = overhead:FindFirstChild('Mutation')
 
-                        if
-                            rarityLabel and rarityLabel:IsA('TextLabel') and
-                            nameLabel and nameLabel:IsA('TextLabel')
-                        then
+                        if rarityLabel and rarityLabel:IsA('TextLabel') and nameLabel and nameLabel:IsA('TextLabel') then
                             local rarity = rarityLabel.Text
-                            local name = nameLabel.Text
-                            local mutation
-
-                            if mutationLabel and mutationLabel:IsA('TextLabel') and mutationLabel.Visible then
-                                mutation = mutationLabel.Text
-                            end
-
                             if rarity == 'Brainrot God' or rarity == 'Secret' then
+                                local name = nameLabel.Text
+                                local mutation = (mutationLabel and mutationLabel:IsA('TextLabel') and mutationLabel.Visible) and mutationLabel.Text
                                 print("✅ RARE FOUND:", name, rarity, mutation or "None")
-                                sendgoon(name, rarity, mutation, jobId)
-                                return true -- ✅ Rare found!
+                                sendgoon(name, rarity, mutation, currentJobId)
+                                return true
                             end
                         end
                     end
@@ -128,19 +107,55 @@ local function scanForRare()
         end
     end
 
-    return false -- ❌ No rare found in this server
+    return false
 end
 
--- 🔁 Main retry loop
-local function main()
-    local success = scanForRare()
+-- Get public server list and find one to hop to
+local function getServerToHop()
+    local success, result = pcall(function()
+        local url = ("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100"):format(placeId)
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
 
-    if not success then
-        print("❌ No rare found. Hopping in 10s...")
-        task.wait(10)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Cesare0328/my-scripts/refs/heads/main/CachedServerhop.lua"))()
+    if success and result and result.data then
+        for _, server in ipairs(result.data) do
+            if server.playing < server.maxPlayers and server.id ~= currentJobId then
+                return server.id
+            end
+        end
+    end
+
+    return nil
+end
+
+-- Queue this script to re-run on teleport
+local function queueSelf()
+    local scriptUrl = "https://raw.githubusercontent.com/manondehond-cmd/just-test/refs/heads/main/roblox.lua"
+    local exec = "loadstring(game:HttpGet('" .. scriptUrl .. "'))()"
+    if queue_on_teleport then
+        queue_on_teleport(exec)
+    elseif syn and syn.queue_on_teleport then
+        syn.queue_on_teleport(exec)
+    end
+end
+
+-- 🔁 Main logic
+local function main()
+    local foundRare = scanForRare()
+    if not foundRare then
+        print("❌ No rare found. Trying next server...")
+        queueSelf()
+        task.wait(3)
+        local nextServer = getServerToHop()
+        if nextServer then
+            TeleportService:TeleportToPlaceInstance(placeId, nextServer, Players.LocalPlayer)
+        else
+            warn("⚠️ No server found to hop to. Retrying in 30 seconds.")
+            task.wait(30)
+            main() -- try again
+        end
     else
-        print("✅ Rare sent. Script complete.")
+        print("✅ Done. Rare found and reported.")
     end
 end
 
