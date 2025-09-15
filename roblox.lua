@@ -1,8 +1,3 @@
-local Players = game:GetService('Players')
-local localPlayer = Players.LocalPlayer
-local username = localPlayer and localPlayer.Name
-
---// Webhook map for specific usernames
 local webhookMap = {
     ['TheShopFinder1'] = 'https://discord.com/api/webhooks/1415431634622087378/9t3g2OQ-H5d1qtJG0LhJmamtDSyhp6OdTODcmE2rnHjcdicdS1xMn1JjLRPha029M4zB',
     ['TheShopFinder2'] = 'https://discord.com/api/webhooks/1415431634622087378/9t3g2OQ-H5d1qtJG0LhJmamtDSyhp6OdTODcmE2rnHjcdicdS1xMn1JjLRPha029M4zB',
@@ -17,11 +12,15 @@ local webhookMap = {
     ['TheShopFinder11'] = 'https://discord.com/api/webhooks/1415431634622087378/9t3g2OQ-H5d1qtJG0LhJmamtDSyhp6OdTODcmE2rnHjcdicdS1xMn1JjLRPha029M4zB',
 }
 
---// Use their custom webhook or fallback
+local Players = game:GetService('Players')
+local localPlayer = Players.LocalPlayer
+local username = localPlayer and localPlayer.Name
+
+
 local whbk = webhookMap[username]
     or 'https://discord.com/api/webhooks/default/defaultwebhook'
 
---// Determine HTTP request function
+
 local httpRequest = (syn and syn.request)
     or (http and http.request)
     or request
@@ -29,7 +28,7 @@ local httpRequest = (syn and syn.request)
     or (fluxus and fluxus.request)
     or (krnl and krnl.request)
 
---// Send webhook to Discord
+
 local function sendgoon(name, rarity, mutation, jobId)
     if not httpRequest then
         return
@@ -45,7 +44,7 @@ local function sendgoon(name, rarity, mutation, jobId)
     local info
     if mutation then
         info = string.format(
-            '**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n[Mutation] %s\n```\n**Join Server**\n%s',
+            "**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n[Mutation] %s\n```\n**Join Server**\n%s",
             tostring(name),
             tostring(rarity),
             tostring(mutation),
@@ -53,7 +52,7 @@ local function sendgoon(name, rarity, mutation, jobId)
         )
     else
         info = string.format(
-            '**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n```\n**Join Server**\n%s',
+            "**Info**\n```ini\n[Brainrot] %s\n[Rarity] %s\n```\n**Join Server**\n%s",
             tostring(name),
             tostring(rarity),
             robloxJoinLink
@@ -84,7 +83,7 @@ local function sendgoon(name, rarity, mutation, jobId)
     end)
 end
 
---// Loop through plots and check podiums
+
 local plots = workspace:WaitForChild('Plots')
 local jobId = game.JobId
 
@@ -99,12 +98,10 @@ for _, plot in pairs(plots:GetChildren()) do
                 local attach = spawn and spawn:FindFirstChild('Attachment')
                 local overhead = attach
                     and attach:FindFirstChild('AnimalOverhead')
-
                 if overhead then
                     local rarityLabel = overhead:FindFirstChild('Rarity')
                     local nameLabel = overhead:FindFirstChild('DisplayName')
                     local mutationLabel = overhead:FindFirstChild('Mutation')
-
                     if
                         rarityLabel
                         and rarityLabel:IsA('TextLabel')
@@ -115,7 +112,6 @@ for _, plot in pairs(plots:GetChildren()) do
                         if rarity == 'Brainrot God' or rarity == 'Secret' then
                             local name = nameLabel.Text
                             local mutation
-
                             if
                                 mutationLabel
                                 and mutationLabel:IsA('TextLabel')
@@ -123,7 +119,6 @@ for _, plot in pairs(plots:GetChildren()) do
                             then
                                 mutation = mutationLabel.Text
                             end
-
                             print(
                                 'Plot:',
                                 plot.Name,
@@ -136,19 +131,18 @@ for _, plot in pairs(plots:GetChildren()) do
                                 'Mutation:',
                                 mutation or 'None'
                             )
-
                             sendgoon(name, rarity, mutation, jobId)
 
-while true do
-wait(30)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/Amity/main/AutoServerHop.lua"))()
-
-                            end
+                            while true do
+                                wait(15)
+                            loadstring(game:HttpGet('https://raw.githubusercontent.com/Cesare0328/my-scripts/refs/heads/main/CachedServerhop.lua'))()
                         end
-                    end  
+                    end
+                    end
                 end
             end
         end
     end
 end
+
 
